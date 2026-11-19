@@ -3,17 +3,141 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<link rel="icon" href="data:,">
+<title>Talvera Heat — Streets of Talvera</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a140d; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #f5efe6; }
+  #hud.dim #topbar, #hud.dim #minimap-wrap, #hud.dim #objective-bar, #hud.dim #health-wrap, #hud.dim #speedo, #hud.dim #hint { opacity: 0.25; }
+  .panel { background: rgba(20, 16, 12, 0.92); border: 1px solid rgba(255, 210, 62, 0.35); border-radius: 10px; box-shadow: 0 4px 18px rgba(0,0,0,0.45); }
+  #topbar { position: absolute; top: 12px; left: 12px; display: flex; gap: 10px; align-items: center; padding: 8px 14px; }
+  #wanted { font-size: 22px; letter-spacing: 2px; color: #ffd23e; text-shadow: 0 0 6px rgba(255,210,62,0.6); }
+  #wanted.hot { color: #ff5347; text-shadow: 0 0 8px rgba(255,60,40,0.8); animation: pulse 0.7s infinite alternate; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: 0.55; } }
+  #cash { font-size: 20px; font-weight: 800; color: #7be495; }
+  #respect { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #e8e4da; }
+  #clock { font-size: 16px; font-weight: 700; color: #ffd23e; }
+  #minimap-wrap { position: absolute; top: 12px; right: 12px; padding: 6px; }
+  #minimap { display: block; width: 190px; height: 190px; border-radius: 6px; }
+  #map-label { font-size: 11px; letter-spacing: 2px; text-align: center; color: #e8e4da; padding-top: 4px; }
+  #objective-bar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 8px 18px; font-size: 15px; font-weight: 700; max-width: 46vw; text-align: center; }
+  #objective-bar .obj-tag { color: #ffd23e; font-size: 11px; letter-spacing: 2px; display: block; }
+  #health-wrap { position: absolute; left: 12px; bottom: 12px; padding: 8px 12px; width: 220px; }
+  #health-wrap .hp-label { font-size: 11px; letter-spacing: 2px; margin-bottom: 5px; }
+  #health-bar { height: 12px; background: rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: #3aa655; transition: width 0.2s; }
+  #speedo { position: absolute; right: 12px; bottom: 52px; padding: 6px 14px; font-size: 22px; font-weight: 800; color: #fff; }
+  #speedo:empty { display: none; }
+  #hint { position: absolute; right: 12px; bottom: 12px; padding: 6px 10px; font-size: 12px; color: #d8d2c4; }
+  #callout { position: absolute; top: 22%; left: 50%; transform: translateX(-50%) scale(0.9); font-size: 30px; font-weight: 900; letter-spacing: 1px; color: #ffd23e; text-shadow: 0 2px 0 #000, 0 0 18px rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.15s, transform 0.15s; text-align: center; }
+  #callout.show { opacity: 1; transform: translateX(-50%) scale(1); }
+  #dialogue { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); padding: 10px 20px; font-size: 16px; font-weight: 600; max-width: 640px; text-align: center; opacity: 0; transition: opacity 0.3s; }
+  #dialogue.show { opacity: 1; }
+  .menu { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: auto; background: rgba(10, 8, 6, 0.45); }
+  .menu.show { display: flex; }
+  .menu-card { width: min(560px, 88vw); padding: 28px 32px; text-align: center; background: rgba(20, 16, 12, 0.95); border: 1px solid rgba(255, 210, 62, 0.5); border-radius: 14px; }
+  .menu-card h1 { margin: 0 0 4px; font-size: 44px; letter-spacing: 3px; color: #ffd23e; text-shadow: 0 3px 0 #7a2a12; }
+  .menu-card h2 { margin: 0 0 10px; font-size: 26px; color: #fff; }
+  .menu-card p { margin: 8px 0; font-size: 15px; line-height: 1.5; color: #e8e4da; }
+  .menu-card .sub { color: #ffd23e; letter-spacing: 3px; font-size: 13px; font-weight: 700; }
+  .menu-card .keys { font-size: 13px; color: #b8b2a4; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; margin: 14px 0; line-height: 1.8; }
+  .menu-card button { pointer-events: auto; margin: 6px 4px 0; padding: 12px 26px; font-size: 16px; font-weight: 800; letter-spacing: 1px; color: #1a140d; background: #ffd23e; border: none; border-radius: 8px; cursor: pointer; }
+  .menu-card button.secondary { background: transparent; color: #ffd23e; border: 2px solid #ffd23e; }
+  .menu-card button:hover { filter: brightness(1.1); }
+  .howto { display: flex; gap: 10px; margin: 16px 0 4px; text-align: left; }
+  .howto div { flex: 1; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; font-size: 13px; line-height: 1.45; }
+  .howto b { color: #ffd23e; display: block; margin-bottom: 4px; }
 </style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
+<canvas id="game" aria-label="Talvera Heat: drive and fight through the open-world city of Talvera"></canvas>
 <p id="status" role="status" aria-live="polite"></p>
+<div id="hud">
+  <div id="topbar" class="panel">
+    <span id="wanted" class="wanted">☆☆☆☆☆</span>
+    <span id="cash">$0</span>
+    <span id="respect">RESPECT 0</span>
+    <span id="clock">17:40</span>
+  </div>
+  <div id="minimap-wrap" class="panel">
+    <canvas id="minimap" width="190" height="190"></canvas>
+    <div id="map-label">TALVERA</div>
+  </div>
+  <div id="objective-bar" class="panel"><span class="obj-tag">OBJECTIVE</span><span id="objective">—</span></div>
+  <div id="health-wrap" class="panel">
+    <div class="hp-label">HEALTH</div>
+    <div id="health-bar"><div id="health-fill"></div></div>
+  </div>
+  <div id="speedo" class="panel"></div>
+  <div id="hint" class="panel"></div>
+  <div id="callout"></div>
+  <div id="dialogue" class="panel"></div>
+
+  <div id="menu-start" class="menu">
+    <div class="menu-card">
+      <h1>TALVERA HEAT</h1>
+      <div class="sub">STREETS OF TALVERA</div>
+      <p>You are <b>Dax Renner</b>, getaway driver. Fixer <b>Selma Voss</b> has six jobs for you — and the Hollow Men want you gone. Drive, steal, fight, and own the city.</p>
+      <div class="howto">
+        <div><b>1 · DRIVE</b>WASD to drive, Space to handbrake. Press E near a car to steal it.</div>
+        <div><b>2 · FIGHT</b>F to punch, click to shoot. Cops come at 1 star — the helicopter at 4.</div>
+        <div><b>3 · JOBS</b>Go to the teal garage marker, press T, and run the job for cash.</div>
+      </div>
+      <div class="keys">WASD move / drive &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; E enter / exit car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot &nbsp;·&nbsp; T start job &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute</div>
+      <button id="btn-start">START ENGINE</button>
+      <button id="btn-continue" class="secondary">CONTINUE</button>
+      <p style="font-size:12px;color:#b8b2a4">An original game. Talvera, its people and its story are invented — nothing from any commercial game.</p>
+    </div>
+  </div>
+
+  <div id="menu-pause" class="menu">
+    <div class="menu-card">
+      <h2>PAUSED</h2>
+      <p>Take a breath, Dax. The city waits.</p>
+      <button id="btn-resume">RESUME</button>
+      <button id="btn-save-quit" class="secondary">SAVE &amp; QUIT TO MENU</button>
+    </div>
+  </div>
+
+  <div id="menu-busted" class="menu">
+    <div class="menu-card">
+      <h2>BUSTED</h2>
+      <p>The Talvera PD has you. Fine paid, heat cleared — but the Hollow Men are still out there.</p>
+      <button id="btn-busted">PAY $100 FINE &amp; WALK FREE</button>
+    </div>
+  </div>
+
+  <div id="menu-wasted" class="menu">
+    <div class="menu-card">
+      <h2>WASTED</h2>
+      <p>You wake up in the garage, patched up by Selma. The city does not forgive — but it forgets, for a price.</p>
+      <button id="btn-wasted">GET BACK UP</button>
+    </div>
+  </div>
+
+  <div id="menu-complete" class="menu">
+    <div class="menu-card">
+      <h2 id="complete-title">JOB DONE</h2>
+      <p id="complete-reward">+$0</p>
+      <p>Selma wires the cash. Next job is waiting at the garage.</p>
+      <button id="btn-complete">CONTINUE</button>
+    </div>
+  </div>
+
+  <div id="menu-failed" class="menu">
+    <div class="menu-card">
+      <h2>JOB FAILED</h2>
+      <p>That one slipped away. Selma will let you run it again — once.</p>
+      <button id="btn-retry">RETRY JOB</button>
+      <button id="btn-freeroam" class="secondary">FREE ROAM</button>
+    </div>
+  </div>
+</div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
