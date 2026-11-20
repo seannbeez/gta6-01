@@ -16,12 +16,13 @@ export const CFG = {
   riverFar: 372,
   southBankFar: 452,
   bridgeXs: [-120, 120],
-  // Sun-soaked desert-river palette.
-  sky: 0x87b5d6,
-  fog: 0xb8c9d4,
-  sunColor: 0xffe3b0,
+  // Hurricane-sunset palette: low orange sun under a bruised purple storm
+  // sky, wet mirror asphalt, neon against warm sand and terracotta.
+  sky: 0x5b3a5e,
+  fog: 0x7a4a58,
+  sunColor: 0xff9a4d,
   groundColor: 0xc9b18a,
-  roadColor: 0x3d3a38,
+  roadColor: 0x4a3a36,
   sidewalkColor: 0xbfae90,
   riverColor: 0x2e7f8f,
   // Gameplay tuning.

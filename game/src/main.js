@@ -14,6 +14,8 @@ import { Police } from './police.js';
 import { MissionSys, MISSIONS } from './missions.js';
 import { HUD } from './hud.js';
 import { stageShot } from './shots.js';
+import { UPGRADES, freshUpgrades, nextPrice, maxHealth, pistolDamage, fireInterval } from './garage.js';
+import { FX } from './fx.js';
 
 const MAX_FRAME = 0.25;
 
@@ -39,14 +41,31 @@ class Game {
     this.hud = new HUD(this.city);
     this.player = new Player(this.scene, this.city.playerSpawn.x, this.city.playerSpawn.z);
     this.traffic = new Traffic(this.scene, this.city, this.rng);
-    this.traffic.spawn(12, this.player.x, this.player.z);
+    this.traffic.spawn(18, this.player.x, this.player.z);
     this.peds = new Pedestrians(this.scene, this.city, this.rng);
-    this.peds.spawn(14, this.player.x, this.player.z);
+    this.peds.spawn(22, this.player.x, this.player.z);
     this.police = new Police(this.scene, this.city, this.rng);
     this.missions = new MissionSys(this.scene, this.city, this.rng);
     this.parked = [];
     this.state = 'menu';
     this.cash = 0;
+    this.upgrades = freshUpgrades();
+    this.garageReturn = 'menu';
+    // Hurricane lightning: a far-off flash light, fired at random intervals.
+    this.flash = new THREE.PointLight(0xcdd8ff, 0, 900);
+    this.flash.position.set(0, 300, 0);
+    this.scene.add(this.flash);
+    this.flashT = 0;
+    this.nextFlash = 6 + this.rng() * 8;
+    // Weather: the hurricane storm is the default mood; KeyR toggles it to
+    // a clear golden hour (and back). T stays the mission-start key.
+    this.weather = { storm: true };
+    // Juice: particle bursts, screen shake and hit-stop (freeze frames).
+    this.fx = new FX(this.scene);
+    this.shake = 0;
+    this.hitStop = 0;
+    this._lastWanted = 0;
+    this._driftT = 0;
     this.clockMinutes = 17 * 60 + 40;
     this.time = 0;
     this.camYawOffset = 0;
@@ -85,6 +104,10 @@ class Game {
     on('btn-busted', () => this.respawn('busted'));
     on('btn-wasted', () => this.respawn('wasted'));
     on('btn-complete', () => { this.state = 'playing'; this.hud.hideMenus(); });
+    on('btn-garage-close', () => this.closeGarage());
+    on('btn-buy-engine', () => this.buyUpgrade('engine'));
+    on('btn-buy-armor', () => this.buyUpgrade('armor'));
+    on('btn-buy-weapon', () => this.buyUpgrade('weapon'));
     on('btn-retry', () => {
       this.missions.start(this.failedIndex);
       this.state = 'playing'; this.hud.hideMenus();
@@ -92,6 +115,51 @@ class Game {
     on('btn-freeroam', () => { this.state = 'playing'; this.hud.hideMenus(); });
   }
   announce(msg) { this.status.textContent = msg; }
+  openGarage(from) {
+    this.garageReturn = from;
+    this.state = 'garage';
+    this.hud.setGarage(this.cash, this.upgrades);
+    this.hud.showMenu('garage');
+    this.audio.sfx('door');
+    this.announce('Renner Garage. Spend mission cash on the car and the crew.');
+  }
+  closeGarage() {
+    this.state = this.garageReturn === 'menu' ? 'menu' : 'playing';
+    if (this.state === 'menu') this.hud.showMenu('start');
+    else this.hud.hideMenus();
+  }
+  // Weather toggle (KeyR): storm ↔ clear golden hour. Storm is the default
+  // hurricane mood (lightning, mauve fog, low sun); clear lifts the fog,
+  // warms the haze and brightens the sun, and stops the lightning.
+  toggleWeather() {
+    this.weather.storm = !this.weather.storm;
+    if (this.weather.storm) {
+      this.scene.fog.color.setHex(CFG.fog);
+      this.scene.fog.near = 120; this.scene.fog.far = 620;
+      this.city.sun.intensity = 2.6;
+      this.hud.callout('STORM ROLLS IN — LIGHTNING', '#9fb7ff');
+    } else {
+      this.scene.fog.color.setHex(0xffc98a);
+      this.scene.fog.near = 200; this.scene.fog.far = 900;
+      this.city.sun.intensity = 3.4;
+      this.hud.callout('SKY CLEARS — GOLDEN HOUR', '#ffd23e');
+    }
+    this.audio.sfx('door');
+  }
+  buyUpgrade(kind) {
+    const level = this.upgrades[kind];
+    const price = nextPrice(kind, level);
+    if (price === null) { this.hud.callout(`${UPGRADES[kind].name} ALREADY MAXED`); return; }
+    if (this.cash < price) { this.hud.callout('NOT ENOUGH CASH — run a job first', '#ff5347'); return; }
+    this.cash -= price;
+    this.upgrades[kind] = level + 1;
+    if (kind === 'armor') this.player.health = maxHealth(this.upgrades.armor);
+    if (kind === 'weapon') this.player.fireInterval = fireInterval(this.upgrades.weapon);
+    this.audio.sfx('cash');
+    this.hud.callout(`${UPGRADES[kind].name} LV${this.upgrades[kind]} INSTALLED`, '#7be495');
+    this.saveGame();
+    this.hud.setGarage(this.cash, this.upgrades);
+  }
   startGame(opts = {}) {
     if (!opts.keepSave) {
       // Fresh run keeps any loaded save; a plain start resets position only.
@@ -104,6 +172,7 @@ class Game {
     try {
       window.localStorage.setItem(CFG.saveKey, JSON.stringify({
         cash: this.cash,
+        upgrades: this.upgrades,
         missionIndex: this.missions.index,
         completed: this.missions.completedCount,
         health: this.player.health,
@@ -119,6 +188,8 @@ class Game {
       if (!raw) return false;
       const s = JSON.parse(raw);
       this.cash = s.cash || 0;
+      this.upgrades = { ...freshUpgrades(), ...(s.upgrades || {}) };
+      this.player.fireInterval = fireInterval(this.upgrades.weapon);
       this.missions.index = Math.min(s.missionIndex || 0, MISSIONS.length - 1);
       this.missions.completedCount = s.completed || 0;
       this.player.health = s.health || CFG.playerHealth;
@@ -138,7 +209,7 @@ class Game {
     this.player.mesh.visible = true;
     this.player.x = this.city.garage.x;
     this.player.z = this.city.garage.z;
-    this.player.health = CFG.playerHealth;
+    this.player.health = maxHealth(this.upgrades.armor);
     this.player.sync();
     this.police.clearHeat();
     this.state = 'playing';
@@ -152,6 +223,11 @@ class Game {
     this.state = 'complete';
     this.hud.showMenu('complete');
     this.audio.sfx('mission');
+    // Juice: a freeze frame, a shake kick and a gold/green confetti burst.
+    this.hitStop = 0.15;
+    this.shake = Math.max(this.shake, 0.25);
+    this.fx.burst(this.player.x, 2, this.player.z, 0xffd23e, 40, 9, 0.9, 6);
+    this.fx.burst(this.player.x, 2, this.player.z, 0x7be495, 24, 7, 0.8, 6);
     this.announce(`Job complete: ${m.title}. $${m.reward} earned.`);
   }
   onMissionFailed() {
@@ -163,6 +239,7 @@ class Game {
   }
   putPlayerInCar(kind, color, x, z, heading) {
     const car = new Car(this.scene, kind, color, x, z, heading);
+    car.engineLevel = this.upgrades.engine;
     car.speed = 0;
     this.player.inCar = car;
     this.player.mesh.visible = false;
@@ -202,6 +279,7 @@ class Game {
     const j = this.parked.indexOf(car);
     if (j >= 0) this.parked.splice(j, 1);
     this.player.inCar = car;
+    car.engineLevel = this.upgrades.engine;
     car.speed = 0;
     this.player.mesh.visible = false;
     this.audio.sfx('door');
@@ -269,8 +347,11 @@ class Game {
     for (const p of this.peds.list) if (p.alive) test(p.x, p.z, 'ped', p);
     this.showTracer(ox, oz, ox + fx * bestD, oz + fz * bestD);
     this.audio.sfx('shoot');
+    // Muzzle flash: a yellow-white burst at the gun, plus a small kick.
+    this.fx.burst(ox + fx * 1.2, 1.4, oz + fz * 1.2, 0xffe9a8, 10, 5, 0.3, 0);
+    this.shake = Math.max(this.shake, 0.12);
     this._danger = { x: ox + fx * bestD, z: oz + fz * bestD, r: 30 };
-    if (bestKind === 'rival') this.missions.damageRival(best, CFG.pistolDamage, this);
+    if (bestKind === 'rival') this.missions.damageRival(best, pistolDamage(this.upgrades.weapon), this);
     else if (bestKind === 'ped') {
       best.alive = false;
       this.scene.remove(best.mesh);
@@ -300,6 +381,13 @@ class Game {
       if (this.shotInput.steer === 1) { this.input.keys.add('KeyD'); this._synthetic.push('KeyD'); }
     }
     const input = this.input;
+    if (this.state === 'garage') {
+      // Garage pauses the world; G or Esc closes it back where it came from.
+      if (input.pressed('KeyG') || input.pressed('Escape')) this.closeGarage();
+      this.hud.update(this.hudState());
+      input.endFrame();
+      return;
+    }
     if (this.state === 'menu') {
       this.menuOrbit += dt * 0.05;
       const cx = Math.sin(this.menuOrbit) * 130, cz = Math.cos(this.menuOrbit) * 130;
@@ -309,10 +397,20 @@ class Game {
       this.peds.update(dt, 0, 0, null, null, 0);
       this.updateSun(0, 0);
       this.hud.update(this.hudState());
+      if (input.pressed('KeyG')) this.openGarage('menu');
       input.endFrame();
       return;
     }
     if (this.state !== 'playing') { input.endFrame(); return; }
+    // Hit-stop: freeze the world for a beat after a crucial action (mission
+    // complete, wanted up, hard collision). The render loop still runs, so
+    // the freeze reads as a punchy frame hold, not a stall.
+    if (this.hitStop > 0) {
+      this.hitStop -= dt;
+      this.fx.update(dt);
+      input.endFrame();
+      return;
+    }
     // Pause / mute / mission keys.
     if (input.pressedAny('KeyP', 'Escape')) {
       this.state = 'paused';
@@ -324,6 +422,17 @@ class Game {
     if (input.pressed('KeyM')) {
       this.audio.setMuted(!this.audio.muted);
       this.hud.callout(this.audio.muted ? 'SOUND OFF' : 'SOUND ON');
+    }
+    if (input.pressed('KeyR')) this.toggleWeather();
+    // G at the garage marker opens Renner Garage (and eats the press, so it
+    // does not also fire the pistol); anywhere else G still shoots.
+    const px0 = this.player.inCar ? this.player.inCar.x : this.player.x;
+    const pz0 = this.player.inCar ? this.player.inCar.z : this.player.z;
+    if (input.pressed('KeyG') && dist2d(px0, pz0, this.city.garage.x, this.city.garage.z) < 14) {
+      input.consume('KeyG');
+      this.openGarage('playing');
+      input.endFrame();
+      return;
     }
     if (input.pressed('KeyT') && !this.missions.active && this.missions.index < MISSIONS.length) {
       const d = dist2d(this.player.x, this.player.z, this.city.garage.x, this.city.garage.z);
@@ -348,6 +457,14 @@ class Game {
       hitSomething = car.drive(input, dt, this.city.colliders, others);
       this.player.x = car.x; this.player.z = car.z;
       this.player.heading = car.heading;
+      // Drift smoke: handbrake + speed throws grey puffs off the rear.
+      this._driftT -= dt;
+      if (input.down('Space') && Math.abs(car.speed) > 10 && this._driftT <= 0) {
+        this._driftT = 0.09;
+        const bx = car.x - Math.sin(car.heading) * 2.2;
+        const bz = car.z - Math.cos(car.heading) * 2.2;
+        this.fx.burst(bx, 0.6, bz, 0x9aa0a8, 5, 2.5, 0.7, -1.5);
+      }
       // Running over a pedestrian at speed is a crime.
       this._pedHitCooldown -= dt;
       const ped = this.peds.nearest(car.x, car.z, 2.6);
@@ -367,7 +484,14 @@ class Game {
       else if (action === 'shoot') this.shoot();
       this.audio.setEngine(0, false);
     }
-    if (hitSomething && this.rng() < 0.5) this.audio.sfx('crash');
+    if (hitSomething) {
+      // Hard hit: proportional shake, damage sparks, a beat of hit-stop.
+      this.shake = Math.max(this.shake, 0.5);
+      this.hitStop = Math.max(this.hitStop, 0.05);
+      const cx = this.player.inCar.x, cz = this.player.inCar.z;
+      this.fx.burst(cx, 1.2, cz, 0xffa63e, 14, 7, 0.5, 12);
+      if (this.rng() < 0.5) this.audio.sfx('crash');
+    }
     // World updates.
     const px = this.player.inCar ? this.player.inCar.x : this.player.x;
     const pz = this.player.inCar ? this.player.inCar.z : this.player.z;
@@ -375,6 +499,12 @@ class Game {
     this.peds.update(dt, px, pz, this._danger ? this._danger.x : null, this._danger ? this._danger.z : null, this._danger ? this._danger.r : 0);
     this._danger = null;
     const busted = this.police.update(dt, this);
+    // Wanted up: a beat of hit-stop + a shake kick when the heat rises.
+    if (this.police.wanted > this._lastWanted) {
+      this.hitStop = Math.max(this.hitStop, 0.08);
+      this.shake = Math.max(this.shake, 0.3);
+    }
+    this._lastWanted = this.police.wanted;
     this.missions.update(dt, this);
     // Dialogue line.
     this.hud.setDialogue(this.missions.dialogue.length ? this.missions.dialogue[0] : null);
@@ -390,6 +520,9 @@ class Game {
       this.audio.sfx('busted');
       this.announce('Busted by the Talvera PD.');
     }
+    // Particles + shake decay.
+    this.fx.update(dt);
+    this.shake = Math.max(0, this.shake - dt * 1.8);
     // Camera + sun follow.
     this.updateCamera(dt);
     this.updateSun(px, pz);
@@ -411,6 +544,8 @@ class Game {
     return {
       cash: this.cash,
       health: this.player.health,
+      maxHealth: maxHealth(this.upgrades.armor),
+      garageNear: dist2d(px, pz, this.city.garage.x, this.city.garage.z) < 14,
       wanted: this.police.wanted,
       objective: this.missions.objectiveText,
       speed: inCar ? this.player.inCar.speed : 0,
@@ -445,12 +580,41 @@ class Game {
   }
   updateSun(px, pz) {
     const sun = this.city.sun;
-    sun.position.set(px + 180, 260, pz + 120);
+    sun.position.set(px + 220, 150, pz + 140);
     sun.target.position.set(px, 0, pz);
     sun.target.updateMatrixWorld();
+    // River shimmer: the teal water breathes between two close tones.
+    if (this.city.water) {
+      const s = 0.5 + 0.5 * Math.sin(this.time * 0.8);
+      this.city.water.material.color.setHex(s > 0.5 ? 0x3a9aa8 : 0x2e7f8f);
+    }
+    // Hurricane lightning: a distant flash every 8–16 seconds, gone in a blink.
+    // Only while the storm is on (KeyR clears the sky).
+    this.nextFlash -= 1 / 60;
+    if (this.weather.storm && this.nextFlash <= 0) { this.flashT = 0.28; this.nextFlash = 8 + this.rng() * 8; }
+    if (this.flashT > 0) {
+      this.flashT -= 1 / 60;
+      this.flash.intensity = Math.max(0, this.flashT) * 22;
+    } else this.flash.intensity = 0;
   }
   render() {
+    // Screen shake: a decaying random offset on the camera, proportional to
+    // the last hard hit. Applied for the render only, then restored so the
+    // camera never drifts.
+    let sx = 0, sy = 0, sz = 0;
+    if (this.shake > 0.001) {
+      const s = this.shake;
+      sx = (this.rng() - 0.5) * s;
+      sy = (this.rng() - 0.5) * s * 0.6;
+      sz = (this.rng() - 0.5) * s;
+      this.camera.position.x += sx;
+      this.camera.position.y += sy;
+      this.camera.position.z += sz;
+    }
     this.renderer.render(this.scene, this.camera);
+    this.camera.position.x -= sx;
+    this.camera.position.y -= sy;
+    this.camera.position.z -= sz;
   }
   run() {
     let last = performance.now();

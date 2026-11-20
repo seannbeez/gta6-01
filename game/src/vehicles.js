@@ -87,11 +87,16 @@ export class Car {
     const left = input.any('KeyA', 'ArrowLeft') ? 1 : 0;
     const right = input.any('KeyD', 'ArrowRight') ? 1 : 0;
     const hand = input.down('Space');
-    if (fwd) this.speed += CFG.carAccel * dt * (this.speed < 0 ? 2.2 : 1);
-    if (back) this.speed -= (this.speed > 0.5 ? CFG.carBrake : CFG.carAccel * 0.6) * dt;
+    // Garage engine tuning: a tuned car pulls harder and runs faster.
+    const eng = this.engineLevel || 0;
+    const accel = CFG.carAccel * (1 + 0.1 * eng);
+    const topSpeed = CFG.carMaxSpeed * (1 + 0.13 * eng);
+    const topReverse = CFG.carMaxReverse * (1 + 0.1 * eng);
+    if (fwd) this.speed += accel * dt * (this.speed < 0 ? 2.2 : 1);
+    if (back) this.speed -= (this.speed > 0.5 ? CFG.carBrake : accel * 0.6) * dt;
     if (!fwd && !back) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 8 * dt);
     if (hand) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 22 * dt);
-    this.speed = clamp(this.speed, -CFG.carMaxReverse, CFG.carMaxSpeed);
+    this.speed = clamp(this.speed, -topReverse, topSpeed);
     const targetSteer = (left ? 1 : 0) - (right ? 1 : 0);
     this.steer += (targetSteer - this.steer) * Math.min(1, dt * 8);
     const spd = this.speed;
@@ -144,7 +149,7 @@ export class Traffic {
     this.city = city;
     this.rng = rng;
     this.cars = [];
-    this.maxCars = 16;
+    this.maxCars = 24;
     // Adjacency: endpoint key -> segments touching it.
     this.adj = new Map();
     for (const s of city.roads) {

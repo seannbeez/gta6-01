@@ -19,12 +19,12 @@
   #cash { font-size: 20px; font-weight: 800; color: #7be495; }
   #respect { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #e8e4da; }
   #clock { font-size: 16px; font-weight: 700; color: #ffd23e; }
-  #minimap-wrap { position: absolute; top: 12px; right: 12px; padding: 6px; }
-  #minimap { display: block; width: 190px; height: 190px; border-radius: 6px; }
+  #minimap-wrap { position: absolute; left: 12px; bottom: 12px; padding: 6px; }
+  #minimap { display: block; width: 170px; height: 170px; border-radius: 50%; }
   #map-label { font-size: 11px; letter-spacing: 2px; text-align: center; color: #e8e4da; padding-top: 4px; }
   #objective-bar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 8px 18px; font-size: 15px; font-weight: 700; max-width: 46vw; text-align: center; }
   #objective-bar .obj-tag { color: #ffd23e; font-size: 11px; letter-spacing: 2px; display: block; }
-  #health-wrap { position: absolute; left: 12px; bottom: 12px; padding: 8px 12px; width: 220px; }
+  #health-wrap { position: absolute; left: 12px; bottom: 206px; padding: 8px 12px; width: 220px; }
   #health-wrap .hp-label { font-size: 11px; letter-spacing: 2px; margin-bottom: 5px; }
   #health-bar { height: 12px; background: rgba(255,255,255,0.15); border-radius: 6px; overflow: hidden; }
   #health-fill { height: 100%; width: 100%; background: #3aa655; transition: width 0.2s; }
@@ -49,6 +49,15 @@
   .howto { display: flex; gap: 10px; margin: 16px 0 4px; text-align: left; }
   .howto div { flex: 1; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; font-size: 13px; line-height: 1.45; }
   .howto b { color: #ffd23e; display: block; margin-bottom: 4px; }
+  .menu-card.garage { border-color: rgba(46,230,255,0.6); box-shadow: 0 0 24px rgba(46,230,255,0.25), 0 4px 18px rgba(0,0,0,0.45); }
+  .menu-card.garage h2 { color: #2ee6ff; }
+  .up-row { display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+  .up-row .up-info { flex: 1; font-size: 13px; line-height: 1.4; color: #e8e4da; }
+  .up-row .up-info b { color: #2ee6ff; letter-spacing: 1px; }
+  .up-row .pips { color: #ffd23e; letter-spacing: 2px; margin-left: 6px; }
+  .up-row .up-price { font-weight: 800; color: #ffd23e; white-space: nowrap; }
+  .up-row button { margin: 0; padding: 8px 16px; font-size: 14px; }
+  .up-row button:disabled { background: rgba(255,255,255,0.12); color: #8a8578; cursor: default; filter: none; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.min.js" } }
@@ -88,7 +97,7 @@
         <div><b>2 · FIGHT</b>F to punch, click to shoot. Cops come at 1 star — the helicopter at 4.</div>
         <div><b>3 · JOBS</b>Go to the teal garage marker, press T, and run the job for cash.</div>
       </div>
-      <div class="keys">WASD move / drive &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; E enter / exit car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot &nbsp;·&nbsp; T start job &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute</div>
+      <div class="keys">WASD move / drive &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; E enter / exit car &nbsp;·&nbsp; F punch &nbsp;·&nbsp; Click shoot &nbsp;·&nbsp; T start job &nbsp;·&nbsp; G garage &nbsp;·&nbsp; R weather &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute</div>
       <button id="btn-start">START ENGINE</button>
       <button id="btn-continue" class="secondary">CONTINUE</button>
       <p style="font-size:12px;color:#b8b2a4">An original game. Talvera, its people and its story are invented — nothing from any commercial game.</p>
@@ -135,6 +144,30 @@
       <p>That one slipped away. Selma will let you run it again — once.</p>
       <button id="btn-retry">RETRY JOB</button>
       <button id="btn-freeroam" class="secondary">FREE ROAM</button>
+    </div>
+  </div>
+
+  <div id="menu-garage" class="menu">
+    <div class="menu-card garage">
+      <h2>RENNER GARAGE</h2>
+      <p>Selma's workshop. Spend the job money — <span id="garage-cash" style="color:#7be495;font-weight:800">$0</span> in the kitty.</p>
+      <div class="up-row">
+        <div class="up-info"><b>ENGINE</b><span class="pips" id="garage-pips-engine">○○○</span><br>Top speed +13% and sharper acceleration per level.</div>
+        <span class="up-price" id="garage-price-engine">$200</span>
+        <button id="btn-buy-engine">BUY</button>
+      </div>
+      <div class="up-row">
+        <div class="up-info"><b>ARMOR</b><span class="pips" id="garage-pips-armor">○○○</span><br>+25 max health per level, fitted with a full repair.</div>
+        <span class="up-price" id="garage-price-armor">$150</span>
+        <button id="btn-buy-armor">BUY</button>
+      </div>
+      <div class="up-row">
+        <div class="up-info"><b>WEAPON</b><span class="pips" id="garage-pips-weapon">○○○</span><br>Pistol +12 damage and a faster trigger per level.</div>
+        <span class="up-price" id="garage-price-weapon">$150</span>
+        <button id="btn-buy-weapon">BUY</button>
+      </div>
+      <button id="btn-garage-close">BACK TO THE STREETS</button>
+      <p style="font-size:12px;color:#b8b2a4">Press G near the garage marker to come back. Armor fits with a full repair.</p>
     </div>
   </div>
 </div>

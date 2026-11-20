@@ -29,6 +29,9 @@ export class Input {
   }
   down(code) { return this.keys.has(code); }
   pressed(code) { return this.justPressed.has(code); }
+  // Eat a press so a handler that already acted on it (the garage key) does
+  // not also fire a second action (a pistol shot) in the same frame.
+  consume(code) { this.justPressed.delete(code); }
   any(...codes) { for (const c of codes) if (this.keys.has(c)) return true; return false; }
   pressedAny(...codes) { for (const c of codes) if (this.justPressed.has(c)) return true; return false; }
   endFrame() {

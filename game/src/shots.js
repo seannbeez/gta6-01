@@ -26,16 +26,24 @@ export function stageShot(name, game) {
     game.missions.start(0);
     game.hud.setDialogue('SELMA: Take the sedan to the Copper Market meet. No trouble, no heat.');
     drive(7);
-    // Park two cruisers right on the player's tail so the chase reads in one frame.
+    // Extra traffic ahead so the boulevard reads busy, not empty.
+    const car0 = game.player.inCar;
+    game.traffic.spawn(6, car0.x + Math.sin(car0.heading) * 40, car0.z + Math.cos(car0.heading) * 40);
+    drive(1);
+    // Park two cruisers flanking the player's tail so the chase reads in one
+    // frame. Placed LAST, after all driving, so the pursuit AI cannot chase
+    // them out of frame before the render — they must sit BESIDE the car
+    // (4 back, 6 to each side): directly behind the car they fall behind the
+    // chase camera, and too far to the side they fall outside the view.
     const car = game.player.inCar;
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
     const rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
-    for (const s of [-4, 4]) {
-      const cop = game.police.spawnCar(car.x - fx * 17 + rx * s, car.z - fz * 17 + rz * s);
+    for (const s of [-6, 6]) {
+      const cop = game.police.spawnCar(car.x - fx * 4 + rx * s, car.z - fz * 4 + rz * s);
       cop.heading = car.heading;
       cop.speed = Math.max(20, car.speed * 0.9);
+      cop.sync();
     }
-    drive(1);
     game.state = 'playing';
   } else if (name === 'street') {
     // On foot on the Riverside Promenade: traffic, pedestrians, the Hollow Men ahead.

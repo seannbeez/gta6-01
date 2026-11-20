@@ -47,6 +47,7 @@ export class Player {
     this.walkPhase = 0;
     this.punchTimer = 0;
     this.shootCooldown = 0;
+    this.fireInterval = 0.32;
     this.muzzle = null;
     scene.add(this.mesh);
     this.sync();
@@ -96,7 +97,7 @@ export class Player {
     this.sync();
     if (input.pressed('KeyF')) { this.punchTimer = 0.25; return 'punch'; }
     if ((input.mouseClicked || input.pressed('KeyG')) && this.shootCooldown <= 0) {
-      this.shootCooldown = 0.32;
+      this.shootCooldown = this.fireInterval;
       return 'shoot';
     }
     return null;
@@ -116,7 +117,7 @@ export class Pedestrians {
     this.city = city;
     this.rng = rng;
     this.list = [];
-    this.maxPeds = 22;
+    this.maxPeds = 34;
   }
   spawn(n, nearX, nearZ) {
     for (let i = 0; i < n; i++) {

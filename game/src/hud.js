@@ -1,6 +1,7 @@
 // HUD, minimap, menus, callouts and dialogue — authored in this recorded session.
 // All HUD chrome is DOM over the WebGL canvas; the minimap is a 2D canvas.
 import { CFG } from './config.js';
+import { UPGRADES } from './garage.js';
 import { clamp } from './util.js';
 
 export class HUD {
@@ -51,7 +52,7 @@ export class HUD {
     wEl.className = 'wanted' + (state.wanted >= 3 ? ' hot' : '');
     this.el('cash').textContent = `$${state.cash.toLocaleString('en-US')}`;
     this.el('respect').textContent = `RESPECT ${state.respect}`;
-    this.el('health-fill').style.width = `${clamp(state.health, 0, 100)}%`;
+    this.el('health-fill').style.width = `${clamp(state.health, 0, state.maxHealth || 100) / (state.maxHealth || 100) * 100}%`;
     this.el('health-fill').style.background = state.health > 50 ? '#3aa655' : state.health > 25 ? '#e0a92e' : '#c23b2e';
     const hh = String(Math.floor(state.clockMinutes / 60) % 24).padStart(2, '0');
     const mm = String(Math.floor(state.clockMinutes % 60)).padStart(2, '0');
@@ -59,8 +60,8 @@ export class HUD {
     this.el('objective').textContent = state.objective;
     this.el('speedo').textContent = state.inCar ? `${Math.round(Math.abs(state.speed) * 2.4)} km/h` : '';
     this.el('hint').textContent = state.inCar
-      ? 'WASD drive · Space handbrake · E exit car · P pause · M mute'
-      : 'WASD move · Shift sprint · E enter car · F punch · Click shoot · T start job · P pause · M mute';
+      ? `WASD drive · Space handbrake · E exit car${state.garageNear ? ' · G garage' : ''} · R weather · P pause · M mute`
+      : `WASD move · Shift sprint · E enter car · F punch · Click shoot · T start job${state.garageNear ? ' · G garage' : ''} · R weather · P pause · M mute`;
     this.drawMinimap(state);
   }
   drawMinimap(state) {
@@ -111,7 +112,7 @@ export class HUD {
     this.dialogueEl.classList.add('show');
   }
   showMenu(name) {
-    for (const m of ['start', 'pause', 'busted', 'wasted', 'complete', 'failed']) {
+    for (const m of ['start', 'pause', 'busted', 'wasted', 'complete', 'failed', 'garage']) {
       const el = this.el(`menu-${m}`);
       if (el) el.classList.toggle('show', m === name);
     }
@@ -121,5 +122,20 @@ export class HUD {
   setComplete(title, reward) {
     this.el('complete-title').textContent = `JOB DONE — ${title}`;
     this.el('complete-reward').textContent = `+$${reward.toLocaleString('en-US')}`;
+  }
+  // Fill the garage menu: cash, owned levels as pips, next price or MAXED,
+  // and disable each buy button when it is maxed or unaffordable.
+  setGarage(cash, upgrades) {
+    this.el('garage-cash').textContent = `$${cash.toLocaleString('en-US')}`;
+    for (const kind of ['engine', 'armor', 'weapon']) {
+      const level = upgrades[kind];
+      const maxed = level >= UPGRADES[kind].prices.length;
+      const price = maxed ? null : UPGRADES[kind].prices[level];
+      this.el(`garage-pips-${kind}`).textContent = '●'.repeat(level) + '○'.repeat(3 - level);
+      this.el(`garage-price-${kind}`).textContent = maxed ? 'MAXED' : `$${price.toLocaleString('en-US')}`;
+      const btn = this.el(`btn-buy-${kind}`);
+      btn.disabled = maxed || cash < price;
+      btn.textContent = maxed ? 'MAXED OUT' : 'BUY';
+    }
   }
 }

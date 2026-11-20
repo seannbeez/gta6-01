@@ -45,7 +45,7 @@ export const MISSIONS = [
       'SELMA: Take it. Bring it to the garage. Cops will notice — drive clean.',
     ],
     steps: [
-      { type: 'steal', kind: 'sport', x: 30, z: 30, label: 'Steal the gold sports car on Glass Row' },
+      { type: 'steal', kind: 'sport', x: 30, z: 4, label: 'Steal the gold sports car on Glass Row' },
       { type: 'drive', x: -90, z: -66, radius: 10, label: 'Deliver the Comet GT to Renner Garage' },
     ],
   },
@@ -71,7 +71,7 @@ export const MISSIONS = [
       'SELMA: Copper Market, Palm Boulevard, then the Old Mill. Do not stop for anyone.',
     ],
     steps: [
-      { type: 'collect', points: [{ x: 150, z: 120 }, { x: -120, z: -60 }, { x: -40, z: 410 }], label: 'Collect the drops (0/3)' },
+      { type: 'collect', points: [{ x: 150, z: 120 }, { x: -120, z: -60 }, { x: -40, z: 390 }], label: 'Collect the drops (0/3)' },
       { type: 'drive', x: -90, z: -66, radius: 10, label: 'Return to Renner Garage' },
     ],
   },
@@ -85,8 +85,8 @@ export const MISSIONS = [
       'SELMA: Make it to the garage and we are done. Talvera is ours.',
     ],
     steps: [
-      { type: 'drive', x: 0, z: 400, radius: 12, label: 'Reach the Grand Talvera Bank' },
-      { type: 'hold', x: 0, z: 400, seconds: 10, label: 'Crack the vault — hold position (10s)' },
+      { type: 'drive', x: 0, z: 400, radius: 20, label: 'Reach the Grand Talvera Bank' },
+      { type: 'hold', x: 0, z: 400, radius: 20, seconds: 10, label: 'Crack the vault — hold position (10s)' },
       { type: 'escape', x: -90, z: -66, radius: 10, label: 'Escape to Renner Garage with the haul' },
     ],
   },
