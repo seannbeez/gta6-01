@@ -1,56 +1,61 @@
-// Shared numeric and ground-plane helpers for Talvera Heat.
-// Written fresh in this recorded session: same public API and same
-// results as before, just organised and worded my way.
+// Tiny math toolbox for Talvera Heat: number clamping, blending, angles,
+// seeded dice and flat-ground rectangle collision. Nothing here knows about
+// the game itself — every helper is pure input in, value out — so the rest
+// of the code can lean on it without worrying about hidden state.
 
-// ---- scalar helpers -------------------------------------------------------
+const TAU = Math.PI * 2;
 
+// Keep a number inside [low, high]. Values already in range pass through.
 export function clamp(value, low, high) {
-  if (value < low) return low;
-  if (value > high) return high;
-  return value;
+  return value < low ? low : value > high ? high : value;
 }
 
+// Slide from `from` to `to`; amount 0 gives `from`, 1 gives `to`.
 export function lerp(from, to, amount) {
   return from + (to - from) * amount;
 }
 
-// Shortest-path interpolation between two headings (radians).
+// Blend between two headings, always taking the short way round the circle,
+// so a turn from 170 degrees to -170 degrees swings 20 degrees, not 340.
 export function lerpAngle(from, to, amount) {
-  const twoPi = Math.PI * 2;
-  let delta = (to - from) % twoPi;
-  if (delta > Math.PI) delta -= twoPi;
-  if (delta < -Math.PI) delta += twoPi;
-  return from + delta * amount;
+  let gap = (to - from) % TAU;
+  if (gap > Math.PI) gap -= TAU;
+  if (gap < -Math.PI) gap += TAU;
+  return from + gap * amount;
 }
 
-// Straight-line distance on the ground plane (x, z).
+// Flat distance between two spots on the ground, ignoring height.
 export function dist2d(ax, az, bx, bz) {
-  return Math.hypot(ax - bx, az - bz);
+  const dx = ax - bx;
+  const dz = az - bz;
+  return Math.sqrt(dx * dx + dz * dz);
 }
 
-// ---- deterministic randomness ---------------------------------------------
-
+// A small seeded generator (mulberry32): same seed, same stream of numbers
+// in [0, 1), every run, on every machine. The game seeds it once per world
+// so a city layout is stable while still looking hand-scattered.
 export function mulberry32(seed) {
-  let state = seed >>> 0;
+  let s = seed >>> 0;
   return function next() {
-    state = (state + 0x6d2b79f5) | 0;
-    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
-    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
-    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
+// Draw one entry out of a list, using the next roll from `rng`.
 export function pick(rng, list) {
   return list[Math.floor(rng() * list.length)];
 }
 
+// One roll stretched onto [low, high).
 export function range(rng, low, high) {
   return low + rng() * (high - low);
 }
 
-// ---- ground-plane boxes ----------------------------------------------------
-
-// A rectangle on the ground plane, stored as its four edges.
+// A flat rectangle on the ground, held as its four edges so tests against it
+// are cheap comparisons. `halfX` / `halfZ` are half the width and depth.
 export function makeBox(centreX, centreZ, halfX, halfZ) {
   return {
     minX: centreX - halfX,
@@ -60,42 +65,46 @@ export function makeBox(centreX, centreZ, halfX, halfZ) {
   };
 }
 
+// True when the spot (x, z) lies on or inside the rectangle, edges included.
 export function pointInBox(x, z, box) {
   return x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ;
 }
 
-// Move a ground circle (x, z, radius) out of every box it overlaps, so a
-// walker or car cannot pass through a building. The circle is pushed to the
-// nearest edge of each box it touches; returns the corrected position and
-// whether any push happened.
+// Shove a ground circle (centre x, z and a radius) out of any rectangle it
+// overlaps, so walkers and cars slide along walls instead of passing through
+// them. Each box is handled in turn with the circle's updated spot, and the
+// result reports the fixed spot plus whether anything had to move at all.
+//
+// Outside a box the circle is pushed straight away from the closest point
+// on the box. Dead centre inside a box it escapes through the nearest wall;
+// a tie between walls favours left, then right, then near, then far.
 export function resolveCircleBoxes(x, z, radius, boxes) {
-  let moved = false;
-  for (const box of boxes) {
-    const nearestX = clamp(x, box.minX, box.maxX);
-    const nearestZ = clamp(z, box.minZ, box.maxZ);
-    const offX = x - nearestX;
-    const offZ = z - nearestZ;
-    const distSq = offX * offX + offZ * offZ;
-    if (distSq >= radius * radius) continue;
+  let pushed = false;
+  for (let i = 0; i < boxes.length; i += 1) {
+    const box = boxes[i];
+    const nearX = clamp(x, box.minX, box.maxX);
+    const nearZ = clamp(z, box.minZ, box.maxZ);
+    const dx = x - nearX;
+    const dz = z - nearZ;
+    const gapSq = dx * dx + dz * dz;
+    if (gapSq >= radius * radius) continue;
 
-    if (distSq > 0.0001) {
-      const dist = Math.sqrt(distSq);
-      x = nearestX + (offX / dist) * radius;
-      z = nearestZ + (offZ / dist) * radius;
+    if (gapSq > 0.0001) {
+      const gap = Math.sqrt(gapSq);
+      x = nearX + (dx / gap) * radius;
+      z = nearZ + (dz / gap) * radius;
     } else {
-      // The centre sits inside the box: leave through whichever edge is
-      // closest. Ties keep the order left, right, near, far.
-      const toLeft = x - box.minX;
-      const toRight = box.maxX - x;
-      const toNear = z - box.minZ;
-      const toFar = box.maxZ - z;
-      const smallest = Math.min(toLeft, toRight, toNear, toFar);
-      if (smallest === toLeft) x = box.minX - radius;
-      else if (smallest === toRight) x = box.maxX + radius;
-      else if (smallest === toNear) z = box.minZ - radius;
+      const outLeft = x - box.minX;
+      const outRight = box.maxX - x;
+      const outNear = z - box.minZ;
+      const outFar = box.maxZ - z;
+      const least = Math.min(outLeft, outRight, outNear, outFar);
+      if (least === outLeft) x = box.minX - radius;
+      else if (least === outRight) x = box.maxX + radius;
+      else if (least === outNear) z = box.minZ - radius;
       else z = box.maxZ + radius;
     }
-    moved = true;
+    pushed = true;
   }
-  return { x, z, pushed: moved };
+  return { x, z, pushed };
 }
