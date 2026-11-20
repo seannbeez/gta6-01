@@ -1,55 +1,101 @@
-// Small math + random helpers, authored in this recorded build session.
+// Shared numeric and ground-plane helpers for Talvera Heat.
+// Written fresh in this recorded session: same public API and same
+// results as before, just organised and worded my way.
+
+// ---- scalar helpers -------------------------------------------------------
+
+export function clamp(value, low, high) {
+  if (value < low) return low;
+  if (value > high) return high;
+  return value;
+}
+
+export function lerp(from, to, amount) {
+  return from + (to - from) * amount;
+}
+
+// Shortest-path interpolation between two headings (radians).
+export function lerpAngle(from, to, amount) {
+  const twoPi = Math.PI * 2;
+  let delta = (to - from) % twoPi;
+  if (delta > Math.PI) delta -= twoPi;
+  if (delta < -Math.PI) delta += twoPi;
+  return from + delta * amount;
+}
+
+// Straight-line distance on the ground plane (x, z).
+export function dist2d(ax, az, bx, bz) {
+  return Math.hypot(ax - bx, az - bz);
+}
+
+// ---- deterministic randomness ---------------------------------------------
+
 export function mulberry32(seed) {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0; a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  let state = seed >>> 0;
+  return function next() {
+    state = (state + 0x6d2b79f5) | 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-export const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
-export const lerp = (a, b, t) => a + (b - a) * t;
-export function lerpAngle(a, b, t) {
-  let d = (b - a) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return a + d * t;
+export function pick(rng, list) {
+  return list[Math.floor(rng() * list.length)];
 }
-export const dist2d = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
-export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
-export function range(rng, lo, hi) { return lo + rng() * (hi - lo); }
 
-// Axis-aligned box on the ground plane, used for building collision.
-export function makeBox(cx, cz, hx, hz) {
-  return { minX: cx - hx, maxX: cx + hx, minZ: cz - hz, maxZ: cz + hz };
+export function range(rng, low, high) {
+  return low + rng() * (high - low);
 }
-// Push a circle (x, z, radius) out of every box it overlaps. Returns true if pushed.
-export function resolveCircleBoxes(x, z, r, boxes) {
-  let pushed = false;
-  for (let i = 0; i < boxes.length; i++) {
-    const b = boxes[i];
-    const cx = clamp(x, b.minX, b.maxX);
-    const cz = clamp(z, b.minZ, b.maxZ);
-    const dx = x - cx, dz = z - cz;
-    const d2 = dx * dx + dz * dz;
-    if (d2 < r * r) {
-      if (d2 > 0.0001) {
-        const d = Math.sqrt(d2);
-        x = cx + (dx / d) * r; z = cz + (dz / d) * r;
-      } else {
-        // Centre inside the box: push out along the smallest penetration axis.
-        const pl = x - b.minX, pr = b.maxX - x, pt = z - b.minZ, pb = b.maxZ - z;
-        const m = Math.min(pl, pr, pt, pb);
-        if (m === pl) x = b.minX - r; else if (m === pr) x = b.maxX + r;
-        else if (m === pt) z = b.minZ - r; else z = b.maxZ + r;
-      }
-      pushed = true;
+
+// ---- ground-plane boxes ----------------------------------------------------
+
+// A rectangle on the ground plane, stored as its four edges.
+export function makeBox(centreX, centreZ, halfX, halfZ) {
+  return {
+    minX: centreX - halfX,
+    maxX: centreX + halfX,
+    minZ: centreZ - halfZ,
+    maxZ: centreZ + halfZ,
+  };
+}
+
+export function pointInBox(x, z, box) {
+  return x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ;
+}
+
+// Move a ground circle (x, z, radius) out of every box it overlaps, so a
+// walker or car cannot pass through a building. The circle is pushed to the
+// nearest edge of each box it touches; returns the corrected position and
+// whether any push happened.
+export function resolveCircleBoxes(x, z, radius, boxes) {
+  let moved = false;
+  for (const box of boxes) {
+    const nearestX = clamp(x, box.minX, box.maxX);
+    const nearestZ = clamp(z, box.minZ, box.maxZ);
+    const offX = x - nearestX;
+    const offZ = z - nearestZ;
+    const distSq = offX * offX + offZ * offZ;
+    if (distSq >= radius * radius) continue;
+
+    if (distSq > 0.0001) {
+      const dist = Math.sqrt(distSq);
+      x = nearestX + (offX / dist) * radius;
+      z = nearestZ + (offZ / dist) * radius;
+    } else {
+      // The centre sits inside the box: leave through whichever edge is
+      // closest. Ties keep the order left, right, near, far.
+      const toLeft = x - box.minX;
+      const toRight = box.maxX - x;
+      const toNear = z - box.minZ;
+      const toFar = box.maxZ - z;
+      const smallest = Math.min(toLeft, toRight, toNear, toFar);
+      if (smallest === toLeft) x = box.minX - radius;
+      else if (smallest === toRight) x = box.maxX + radius;
+      else if (smallest === toNear) z = box.minZ - radius;
+      else z = box.maxZ + radius;
     }
+    moved = true;
   }
-  return { x, z, pushed };
-}
-export function pointInBox(x, z, b) {
-  return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
+  return { x, z, pushed: moved };
 }
