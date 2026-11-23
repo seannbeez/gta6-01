@@ -212,7 +212,7 @@ window.addEventListener('keydown', (e) => {
   const k = KEYMAP[e.code];
   if (k) { input[k] = true; if (e.code === 'Space') input.drift = true; }
   if (e.repeat) return;
-  if (e.code === 'KeyF') { if (player.inCar) exitCar(game); else enterCar(game); }
+  if (e.code === 'KeyF' || e.code === 'KeyE') { if (player.inCar) exitCar(game); else enterCar(game); }
   if (e.code === 'KeyT') {
     setWeather(city, city.weather === 'storm' ? 'sunset' : 'storm');
     hud.toast(city.weather === 'storm' ? 'HURRICANE MODE' : 'GOLDEN SUNSET', city.weather === 'storm' ? 'Lightning, rain, flooded streets' : 'The storm breaks — sunset over the bay');

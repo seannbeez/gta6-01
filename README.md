@@ -1,8 +1,8 @@
 # PROJECT VICE: HURRICANE CITY
 
-[![Play on make.fun](https://make.fun/badge/play.svg)](https://make.fun/bounty/gta6-01)
-[![Compete on make.fun](https://make.fun/badge/compete.svg)](https://make.fun/bounty/gta6-01)
-[![Built with make.fun](https://make.fun/badge/built.svg)](https://make.fun)
+[![Make GTA 6](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![Rank](https://make.fun/badge/gta6-01/seannbeez/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01)
+[![Reward](https://make.fun/badge/gta6-01/seannbeez/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01)
 
 An original open-world crime game for the **Make GTA 6** bounty
 ([gta6-01](https://make.fun/bounty/gta6-01)): a neon-soaked coastal metropolis —
