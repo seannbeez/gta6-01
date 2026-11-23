@@ -1,299 +1,210 @@
-// The player: arcade driving (nitro, drift, damage), on-foot third-person
-// (walk / sprint / jump / shoot), particles, screen shake and hit-stop.
+// player.js — PROJECT VICE. The player: seamless on-foot third-person walker and
+// arcade-sim driver. On foot: walk, sprint, jump, shoot with tracers + muzzle flash,
+// weapons 1-3 (Pistol / SMG / Shotgun). In car: steering, accel, handbrake drift,
+// nitro with blue flames, damage sparks. Enter/exit any car with F or E.
 import * as THREE from 'three';
-import { clamp, lerp } from './rng.js';
-import { makeCarMesh } from './vehicles.js';
 
-const WALK_SPEED = 6, SPRINT_SPEED = 10;
+export const WEAPONS = [
+  { id: 'fists', name: 'FISTS', ammo: Infinity, damage: 12, rate: 0.35 },
+  { id: 'bat', name: 'BAT', ammo: Infinity, damage: 22, rate: 0.5 },
+  { id: 'pistol', name: 'PISTOL', ammo: 48, damage: 26, rate: 0.28 },
+  { id: 'smg', name: 'SMG', ammo: 120, damage: 14, rate: 0.09 },
+  { id: 'shotgun', name: 'SHOTGUN', ammo: 24, damage: 70, rate: 0.8 },
+  { id: 'rifle', name: 'RIFLE', ammo: 60, damage: 42, rate: 0.14 },
+  { id: 'rpg', name: 'RPG', ammo: 4, damage: 140, rate: 1.2 },
+];
 
-export function createPlayer(scene, save) {
-  const car = makeCarMesh('sports', 0xff2f7e, Math.random);
-  car.position.set(0, 0, 46);
-  car.rotation.y = Math.PI; // facing north (-Z) down Ocean Drive
-  scene.add(car);
-  // on-foot avatar: neon-jacketed runner with a glowing ring
-  const body = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xff2f7e, roughness: 0.5 });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.85, 0.34), mat);
-  torso.position.y = 1.15; torso.castShadow = true;
-  body.add(torso);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 12),
-    new THREE.MeshStandardMaterial({ color: 0xe8b98d, roughness: 0.7 }));
-  head.position.y = 1.85; head.castShadow = true;
-  body.add(head);
-  const legs = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8 });
-  for (const x of [-0.16, 0.16]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.8, 0.24), legs);
-    leg.position.set(x, 0.4, 0);
-    body.add(leg);
-  }
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.72, 24),
-    new THREE.MeshBasicMaterial({ color: 0xffe14d, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
-  body.add(ring);
-  body.visible = false;
-  body.position.set(3, 0, 46);
-  scene.add(body);
-  return {
-    car, body, inCar: true, pos: new THREE.Vector3(0, 0, 46), heading: Math.PI,
-    speed: 0, speedMph: 0, gear: 'N', nitro: 1, condition: 100,
-    health: 100, armor: 60, onFoot: { vx: 0, vz: 0, vy: 0, grounded: true },
-    shake: 0, hitStop: 0, muzzle: 0, walkPhase: 0, drift: false,
+export function createPlayer(scene) {
+  const p = {
+    mode: 'car', // 'car' | 'foot'
+    pos: new THREE.Vector3(0, 0, 26),
+    heading: 0, // facing -Z: north up the boulevard toward the bridge
+    speed: 0,
+    steer: 0,
+    nitro: 100,
+    nitroActive: false,
+    drifting: false,
+    health: 100,
+    armor: 60,
+    cash: 1250,
+    respect: 62, // 0-100 progress to next rank
+    respectLevel: 4,
+    respectTitle: 'FIXER',
+    condition: 84, // car condition %
+    weaponIndex: 2, // pistol
+    lastShot: 0,
+    onGround: true,
+    vy: 0,
+    walkHeading: 0,
+    car: null,
+    mesh: null,
+    footMesh: null,
+    muzzle: null,
+    tracers: [],
+    shake: 0,
+    hitStop: 0,
   };
-}
 
-function collideBuildings(player, colliders, radius) {
-  for (const c of colliders) {
-    const dx = player.pos.x - c.x, dz = player.pos.z - c.z;
-    const ox = c.hw + radius - Math.abs(dx);
-    const oz = c.hd + radius - Math.abs(dz);
-    if (ox > 0 && oz > 0) {
-      if (ox < oz) player.pos.x = c.x + Math.sign(dx || 1) * (c.hw + radius);
-      else player.pos.z = c.z + Math.sign(dz || 1) * (c.hd + radius);
-      return true;
-    }
-  }
-  return false;
-}
+  // --- on-foot character: stylised driver in a neon jacket ---
+  const foot = new THREE.Group();
+  const jacket = new THREE.MeshStandardMaterial({ color: 0xff2a55, roughness: 0.6 });
+  const jeans = new THREE.MeshStandardMaterial({ color: 0x22304a, roughness: 0.9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xc98a5e, roughness: 0.7 });
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.85, 0.32), jeans);
+  legs.position.y = 0.45;
+  foot.add(legs);
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.75, 0.4), jacket);
+  torso.position.y = 1.2;
+  foot.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), skin);
+  head.position.y = 1.78;
+  foot.add(head);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.1, 12), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+  cap.position.y = 1.98;
+  foot.add(cap);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), jacket);
+  armL.position.set(-0.46, 1.2, 0);
+  foot.add(armL);
+  const armR = armL.clone();
+  armR.position.x = 0.46;
+  foot.add(armR);
+  foot.visible = false;
+  scene.add(foot);
+  p.footMesh = foot;
 
-// --- Particles: one Points pool per effect, recycled ---
-function makePool(scene, count, color, size) {
-  const geo = new THREE.BufferGeometry();
-  const pos = new Float32Array(count * 3);
-  const vel = new Float32Array(count * 3);
-  const life = new Float32Array(count);
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({
-    color, size, transparent: true, opacity: 0.9,
-    blending: THREE.AdditiveBlending, depthWrite: false,
-  });
-  const points = new THREE.Points(geo, mat);
-  points.frustumCulled = false;
-  scene.add(points);
-  return { points, pos, vel, life, count, head: 0 };
-}
+  // muzzle flash light + sprite
+  const muzzle = new THREE.PointLight(0xffc860, 0, 14, 1.5);
+  scene.add(muzzle);
+  p.muzzle = muzzle;
 
-export function createParticles(scene) {
-  return {
-    sparks: makePool(scene, 220, 0xffd23f, 0.5),
-    smoke: makePool(scene, 160, 0x8a8a9a, 1.4),
-    flames: makePool(scene, 120, 0x35a0ff, 0.8),
-    muzzle: makePool(scene, 40, 0xfff2b0, 0.9),
+  p.currentWeapon = () => WEAPONS[p.weaponIndex];
+
+  p.shoot = function (targetPoint) {
+    const now = performance.now() / 1000;
+    const w = p.currentWeapon();
+    if (now - p.lastShot < w.rate) return false;
+    if (w.ammo !== Infinity && w.ammo <= 0) return false;
+    if (w.ammo !== Infinity) w.ammo -= 1;
+    p.lastShot = now;
+    const origin = p.mode === 'car' && p.car
+      ? p.car.position.clone().add(new THREE.Vector3(0, 1.1, 0))
+      : p.pos.clone().add(new THREE.Vector3(0, 1.4, 0));
+    const dir = targetPoint ? targetPoint.clone().sub(origin).normalize() : new THREE.Vector3(-Math.sin(p.heading), 0, -Math.cos(p.heading));
+    // tracer: bright line that fades
+    const geo = new THREE.BufferGeometry().setFromPoints([origin, origin.clone().add(dir.clone().multiplyScalar(42))]);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.95 }));
+    scene.add(line);
+    p.tracers.push({ line, life: 0.09 });
+    p.muzzle.position.copy(origin);
+    p.muzzle.intensity = 90;
+    p.shake = Math.min(p.shake + 0.12, 0.4);
+    return true;
   };
-}
 
-function burst(pool, x, y, z, n, spread, up) {
-  for (let k = 0; k < n; k += 1) {
-    const i = pool.head;
-    pool.head = (pool.head + 1) % pool.count;
-    pool.pos[i * 3] = x; pool.pos[i * 3 + 1] = y; pool.pos[i * 3 + 2] = z;
-    pool.vel[i * 3] = (Math.random() - 0.5) * spread;
-    pool.vel[i * 3 + 1] = Math.random() * up;
-    pool.vel[i * 3 + 2] = (Math.random() - 0.5) * spread;
-    pool.life[i] = 0.5 + Math.random() * 0.5;
-  }
-}
-
-export function updateParticles(pools, dt) {
-  for (const key of Object.keys(pools)) {
-    const pool = pools[key];
-    for (let i = 0; i < pool.count; i += 1) {
-      if (pool.life[i] <= 0) { pool.pos[i * 3 + 1] = -50; continue; }
-      pool.life[i] -= dt;
-      pool.pos[i * 3] += pool.vel[i * 3] * dt;
-      pool.pos[i * 3 + 1] += pool.vel[i * 3 + 1] * dt;
-      pool.pos[i * 3 + 2] += pool.vel[i * 3 + 2] * dt;
-      pool.vel[i * 3 + 1] -= dt * 3;
+  p.updateTracers = function (dt) {
+    for (let i = p.tracers.length - 1; i >= 0; i--) {
+      const t = p.tracers[i];
+      t.life -= dt;
+      t.line.material.opacity = Math.max(0, t.life / 0.09);
+      if (t.life <= 0) { scene.remove(t.line); t.line.geometry.dispose(); p.tracers.splice(i, 1); }
     }
-    pool.points.geometry.attributes.position.needsUpdate = true;
-  }
-}
+    p.muzzle.intensity = Math.max(0, p.muzzle.intensity - dt * 900);
+  };
 
-export function updatePlayer(game, dt, input) {
-  const p = game.player;
-  const car = p.car;
-  if (p.hitStop > 0) { p.hitStop -= dt; return; }
-
-  if (p.inCar) {
-    // --- arcade driving ---
-    const fwd = input.up ? 1 : input.down ? -0.55 : 0;
-    const steer = (input.left ? 1 : 0) - (input.right ? 1 : 0);
-    const maxSpeed = 42;
-    const nitro = input.nitro && p.nitro > 0.05 && fwd > 0;
-    if (nitro) p.nitro = Math.max(0, p.nitro - dt * 0.45);
-    else p.nitro = Math.min(1, p.nitro + dt * 0.08);
-    const accel = (nitro ? 26 : 15) * fwd;
+  // --- driving physics (arcade-sim) ---
+  p.drive = function (dt, input, onCrime) {
+    if (!p.car) return;
+    const accel = input.forward ? 26 : input.back ? -16 : 0;
+    const maxSpeed = p.nitroActive && p.nitro > 0 ? 62 : 46;
     p.speed += accel * dt;
-    p.speed -= p.speed * (input.down ? 2.2 : 0.55) * dt; // drag / brake
-    p.speed = clamp(p.speed, -12, nitro ? maxSpeed * 1.35 : maxSpeed);
-    const spd = Math.abs(p.speed);
-    const steerAmt = steer * (0.9 + spd * 0.02) * (p.speed < 0 ? -1 : 1);
-    p.heading += steerAmt * dt * clamp(spd / 8, 0.25, 1.6);
-    p.drift = input.drift && spd > 12;
-    if (p.drift) {
-      p.heading += steer * dt * 1.1;
-      p.speed *= (1 - dt * 0.25);
-      game.particles && burst(game.particles.smoke, p.pos.x, 0.3, p.pos.z, 2, 3, 2);
-    }
-    p.pos.x += Math.sin(p.heading) * p.speed * dt;
-    p.pos.z += Math.cos(p.heading) * p.speed * dt;
-    // keep inside the playable map
-    p.pos.x = clamp(p.pos.x, -13.5, 134);
-    p.pos.z = clamp(p.pos.z, -278, 278);
-    const hit = collideBuildings(p, game.city.colliders, 1.6);
-    if (hit && spd > 8 && !game.shotMode) {
-      p.speed *= 0.45;
-      p.condition = Math.max(20, p.condition - 4);
-      p.shake = Math.min(1, p.shake + 0.5);
-      game.audio.crash();
-      game.onCrime(8, 'CRASH');
-      burst(game.particles.sparks, p.pos.x, 0.8, p.pos.z, 14, 8, 5);
-    }
-    car.position.copy(p.pos);
-    car.position.y = 0;
-    car.rotation.y = p.heading;
-    car.rotation.z = -steer * clamp(spd / 40, 0, 1) * (p.drift ? 0.22 : 0.07);
-    for (const w of car.userData.wheels) w.rotation.x += p.speed * dt * 2.4;
-    car.userData.beamMat.opacity = game.city.blend > 0.4 ? 0.22 : 0.10;
-    car.userData.glowMat.opacity = nitro ? 0.95 : 0.55;
-    if (nitro) {
-      const bx = p.pos.x - Math.sin(p.heading) * 2.4;
-      const bz = p.pos.z - Math.cos(p.heading) * 2.4;
-      burst(game.particles.flames, bx, 0.5, bz, 3, 1.5, 1);
-    }
-    p.speedMph = p.speed * 2.4;
-    p.gear = p.speedMph > 95 ? '5' : p.speedMph > 65 ? '4' : p.speedMph > 38 ? '3' : p.speedMph > 15 ? '2' : p.speedMph > 2 ? '1' : 'N';
-    // speeding past a cruiser is a crime
-    if (spd > 26 && game.police.cruisers.length > 0) game.onCrime(dt * 3, 'SPEEDING');
-  } else {
-    // --- on foot ---
-    const f = game.foot;
-    const run = input.nitro;
-    const sp = run ? SPRINT_SPEED : WALK_SPEED;
-    const mx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    const mz = (input.down ? 1 : 0) - (input.up ? 1 : 0);
-    const len = Math.hypot(mx, mz) || 1;
-    const camYaw = game.cameraYaw;
-    const wx = (Math.sin(camYaw) * mz + Math.cos(camYaw) * mx) / len * sp;
-    const wz = (Math.cos(camYaw) * mz - Math.sin(camYaw) * mx) / len * sp;
-    const moving = mx !== 0 || mz !== 0;
-    f.vx = lerp(f.vx, moving ? wx : 0, Math.min(1, dt * 10));
-    f.vz = lerp(f.vz, moving ? wz : 0, Math.min(1, dt * 10));
-    p.pos.x = clamp(p.pos.x + f.vx * dt, -13.5, 134);
-    p.pos.z = clamp(p.pos.z + f.vz * dt, -278, 278);
-    collideBuildings(p, game.city.colliders, 0.5);
-    if (input.jump && f.grounded) { f.vy = 7.5; f.grounded = false; }
-    f.vy -= 22 * dt;
-    p.pos.y = (p.pos.y || 0) + f.vy * dt;
-    if (p.pos.y <= 0) { p.pos.y = 0; f.vy = 0; f.grounded = true; }
-    if (moving) {
-      p.walkPhase += dt * (run ? 13 : 9);
-      p.heading = Math.atan2(f.vx, f.vz);
-    }
-    p.body.position.set(p.pos.x, p.pos.y, p.pos.z);
-    p.body.rotation.y = p.heading;
-    p.body.rotation.z = Math.sin(p.walkPhase) * (moving ? 0.08 : 0);
-    p.speedMph = Math.hypot(f.vx, f.vz) * 2.4;
-    p.gear = run ? 'RUN' : 'WALK';
-  }
-  p.shake = Math.max(0, p.shake - dt * 2.2);
-  p.muzzle = Math.max(0, p.muzzle - dt * 8);
-}
+    if (!input.forward && !input.back) p.speed -= Math.sign(p.speed) * 14 * dt;
+    if (Math.abs(p.speed) < 0.4 && !input.forward && !input.back) p.speed = 0;
+    p.speed = THREE.MathUtils.clamp(p.speed, -14, maxSpeed);
+    // steering: sharper at low speed, drift widens it
+    const steerTarget = (input.left ? 1 : 0) - (input.right ? 1 : 0);
+    p.steer += (steerTarget - p.steer) * Math.min(1, dt * 10);
+    const steerAngle = p.steer * (p.drifting ? 0.85 : 0.55) * Math.min(1, Math.abs(p.speed) / 12);
+    p.heading += steerAngle * (p.speed / 46) * dt * 2.4 * (p.speed < 0 ? -1 : 1);
+    const fwd = new THREE.Vector3(-Math.sin(p.heading), 0, -Math.cos(p.heading));
+    const lateral = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const driftSlide = p.drifting ? p.steer * 0.35 : 0;
+    p.pos.addScaledVector(fwd, p.speed * dt);
+    p.pos.addScaledVector(lateral, driftSlide * Math.abs(p.speed) * dt);
+    // stay on the island: soft bounds
+    p.pos.x = THREE.MathUtils.clamp(p.pos.x, -120, 150);
+    p.pos.z = THREE.MathUtils.clamp(p.pos.z, -430, 430);
+    // nitro
+    p.nitroActive = input.nitro && p.nitro > 0 && p.speed > 8;
+    if (p.nitroActive) p.nitro = Math.max(0, p.nitro - 26 * dt);
+    else p.nitro = Math.min(100, p.nitro + 5 * dt);
+    p.drifting = input.handbrake && Math.abs(p.speed) > 10;
+    if (p.drifting) p.speed *= (1 - 0.25 * dt);
+    // speeding past cops is a crime
+    if (Math.abs(p.speed) > 40 && onCrime) onCrime('speeding');
+    // apply to mesh
+    p.car.position.copy(p.pos);
+    p.car.position.y = 0;
+    p.car.rotation.y = p.heading;
+    p.car.rotation.z = -p.steer * 0.06 * Math.min(1, Math.abs(p.speed) / 20) - (p.drifting ? p.steer * 0.08 : 0);
+    p.car.rotation.x = -accel * 0.0012;
+    // wheel spin
+    const wheels = p.car.userData.wheels || [];
+    for (const w of wheels) w.rotation.x += p.speed * dt * 1.6;
+  };
 
-export function shoot(game, targetPoint) {
-  const p = game.player;
-  if (p.inCar) return false; // shooting happens on foot (click = horn in car)
-  p.muzzle = 1;
-  const w = game.hud.weaponIndex;
-  const kind = ['fists', 'bat', 'pistol', 'smg', 'shotgun'][Math.min(w, 4)];
-  game.audio.shot(kind === 'fists' || kind === 'bat' ? 'pistol' : kind);
-  const from = new THREE.Vector3(p.pos.x, (p.pos.y || 0) + 1.5, p.pos.z);
-  const dir = new THREE.Vector3().subVectors(targetPoint, from).normalize();
-  const end = from.clone().add(dir.clone().multiplyScalar(60));
-  burst(game.particles.muzzle, from.x + dir.x * 1.2, from.y, from.z + dir.z * 1.2, 6, 2, 2);
-  burst(game.particles.sparks, end.x, Math.max(0.5, end.y), end.z, 8, 6, 4);
-  p.shake = Math.min(1, p.shake + 0.25);
-  game.onCrime(6, 'SHOTS FIRED');
-  // hit a cruiser or traffic car near the shot line?
-  for (const c of [...game.police.cruisers, ...game.traffic]) {
-    const toCar = new THREE.Vector3().subVectors(c.mesh.position, from);
-    const along = toCar.dot(dir);
-    if (along > 0 && along < 60) {
-      const perp = toCar.clone().addScaledVector(dir, -along).length();
-      if (perp < 3) {
-        burst(game.particles.sparks, c.mesh.position.x, 1, c.mesh.position.z, 18, 9, 6);
-        game.onHitVehicle(c);
-        return true;
-      }
+  // --- on-foot movement ---
+  p.walk = function (dt, input) {
+    const sprint = input.sprint ? 9.5 : 5.2;
+    const move = new THREE.Vector3();
+    if (input.forward) move.z -= 1;
+    if (input.back) move.z += 1;
+    if (input.left) move.x -= 1;
+    if (input.right) move.x += 1;
+    if (move.lengthSq() > 0) {
+      move.normalize();
+      // camera-relative: forward is -Z of heading
+      const fwd = new THREE.Vector3(-Math.sin(p.walkHeading), 0, -Math.cos(p.walkHeading));
+      const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+      const dir = fwd.clone().multiplyScalar(-move.z).add(right.clone().multiplyScalar(move.x)).normalize();
+      p.pos.addScaledVector(dir, sprint * dt);
+      p.walkHeading = Math.atan2(-dir.x, -dir.z);
+      p.footMesh.position.copy(p.pos);
+      p.footMesh.rotation.y = p.walkHeading;
+      // walk bob
+      p.footMesh.position.y = Math.abs(Math.sin(performance.now() / 90)) * 0.06;
     }
-  }
-  return true;
-}
+    // jump
+    if (input.jump && p.onGround) { p.vy = 7.5; p.onGround = false; }
+    if (!p.onGround) {
+      p.vy -= 22 * dt;
+      p.pos.y += p.vy * dt;
+      if (p.pos.y <= 0) { p.pos.y = 0; p.vy = 0; p.onGround = true; }
+      p.footMesh.position.y = p.pos.y;
+    }
+    p.pos.x = THREE.MathUtils.clamp(p.pos.x, -120, 150);
+    p.pos.z = THREE.MathUtils.clamp(p.pos.z, -430, 430);
+  };
 
-export function enterCar(game) {
-  const p = game.player;
-  if (p.inCar) return;
-  // nearest traffic car within 4 m becomes the ride (hijack); otherwise step
-  // back into the player's own parked car if it is close
-  let best = null, bestD = 4.5;
-  for (const t of game.traffic) {
-    const d = Math.hypot(t.mesh.position.x - p.pos.x, t.mesh.position.z - p.pos.z);
-    if (d < bestD) { best = t; bestD = d; }
-  }
-  const ownD = Math.hypot(p.car.position.x - p.pos.x, p.car.position.z - p.pos.z);
-  if (!best && ownD > 4.5) return; // too far from any car: stay on foot
-  p.inCar = true;
-  p.body.visible = false;
-  p.car.visible = true;
-  if (best) {
-    // hijack: swap the player's car mesh for the stolen one
-    p.car.position.copy(best.mesh.position);
-    p.pos.copy(best.mesh.position);
-    p.heading = best.mesh.rotation.y;
-    game.traffic.splice(game.traffic.indexOf(best), 1);
-    game.scene.remove(best.mesh);
-    game.onCrime(14, 'CARJACKING');
-    game.hud.toast('CARJACKED', 'That one is yours now — the owner disagrees.');
-  } else {
-    p.pos.copy(p.car.position);
-    p.heading = p.car.rotation.y;
-  }
-  p.speed = 0;
-}
+  p.enterCar = function (car) {
+    p.car = car;
+    p.mode = 'car';
+    p.pos.copy(car.position);
+    p.heading = car.rotation.y;
+    p.speed = 0;
+    p.footMesh.visible = false;
+  };
 
-export function exitCar(game) {
-  const p = game.player;
-  if (!p.inCar) return;
-  p.inCar = false;
-  p.car.visible = true; // car stays parked where it is
-  p.body.visible = true;
-  p.body.position.set(p.pos.x + 2.5, 0, p.pos.z);
-  p.pos.set(p.body.position.x, 0, p.body.position.z);
-  p.speed = 0; p.speedMph = 0;
-}
+  p.exitCar = function () {
+    if (!p.car) return;
+    p.mode = 'foot';
+    const side = new THREE.Vector3(Math.cos(p.heading), 0, -Math.sin(p.heading));
+    p.pos.copy(p.car.position).addScaledVector(side, 2.6);
+    p.pos.y = 0;
+    p.walkHeading = p.heading;
+    p.footMesh.visible = true;
+    p.footMesh.position.copy(p.pos);
+    p.speed = 0;
+  };
 
-export function updateCamera(game, dt) {
-  const p = game.player;
-  const cam = game.camera;
-  const shake = p.shake * 0.5;
-  const sx = (Math.random() - 0.5) * shake;
-  const sy = (Math.random() - 0.5) * shake;
-  if (p.inCar) {
-    const back = 12 + Math.abs(p.speed) * 0.12;
-    const up = 4.8 + Math.abs(p.speed) * 0.02;
-    const tx = p.pos.x - Math.sin(p.heading) * back + sx;
-    const tz = p.pos.z - Math.cos(p.heading) * back + sy;
-    cam.position.x = lerp(cam.position.x, tx, Math.min(1, dt * 6));
-    cam.position.y = lerp(cam.position.y, up, Math.min(1, dt * 6));
-    cam.position.z = lerp(cam.position.z, tz, Math.min(1, dt * 6));
-    cam.lookAt(p.pos.x + Math.sin(p.heading) * 12, 1.6 + sy, p.pos.z + Math.cos(p.heading) * 12);
-  } else {
-    const back = 7.5, up = 3.6;
-    const tx = p.pos.x - Math.sin(game.cameraYaw) * back + sx;
-    const tz = p.pos.z - Math.cos(game.cameraYaw) * back + sy;
-    cam.position.x = lerp(cam.position.x, tx, Math.min(1, dt * 8));
-    cam.position.y = lerp(cam.position.y, up, Math.min(1, dt * 8));
-    cam.position.z = lerp(cam.position.z, tz, Math.min(1, dt * 8));
-    cam.lookAt(p.pos.x, 1.5 + sy, p.pos.z);
-  }
+  return p;
 }

@@ -1,78 +1,60 @@
 # PROJECT VICE: HURRICANE CITY
 
-[![Make GTA 6](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
-[![Rank](https://make.fun/badge/gta6-01/seannbeez/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01)
-[![Reward](https://make.fun/badge/gta6-01/seannbeez/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01)
+[![Play on make.fun](https://img.shields.io/badge/play-make.fun-ff4fd8)](https://make.fun/bounty/gta6-01)
+[![Built with make.fun](https://img.shields.io/badge/built%20with-make.fun-37e6ff)](https://make.fun)
+[![Compete on make.fun](https://img.shields.io/badge/compete-make.fun-ffcf3d)](https://make.fun/bounty/gta6-01)
 
-An original open-world crime game for the **Make GTA 6** bounty
-([gta6-01](https://make.fun/bounty/gta6-01)): a neon-soaked coastal metropolis —
-Marisol & Ocean Drive — built entirely from procedural code. No Rockstar assets, no
-external files: every building, palm, car, neon sign, sound and song is generated
-in the browser by the game's own code.
-
-**Play it:** serve `game/` with any static server (`node serve.ts`, then open
-http://localhost:8080) and drive. No install, no network, no account.
-
-## The city
-
-Oceanfront Art Deco strip with giant glowing hotel signs (**PALM BREEZE HOTEL**,
-**OCEAN DRIVE**), a downtown skyline, a suspension bridge between two islands, a
-marina full of yachts and an elevated coastal highway. The weather auto-cycles
-between **Golden Sunset** — pink-orange sky, swaying palms, sun glittering on the
-ocean — and **Neon Hurricane Mode** — purple storm clouds, lightning that lights
-the whole skyline, slanted rain, wind-bent palms and flooded asphalt mirroring
-pink/cyan neon, headlights and police lightbars. Press **T** to toggle the storm.
+An original open-world crime game in the browser: drive the neon Ocean Drive
+boulevard of Marisol, a sun-soaked coastal city caught between golden sunset and
+a neon hurricane. Steal cars, outrun Marisol PD through five wanted stars, run
+jobs for MIRA the fixer, and lose the helicopter on the bridge.
 
 ## Play
 
-- **Drive or walk, seamlessly.** Start inside a sports car on Ocean Drive. **F**
-  to exit or enter any car, **Shift** for nitro (blue flames), **Space** to drift,
-  **WASD** to drive, **Shift** to sprint on foot, **Space** to jump.
-- **Fight.** Left click to shoot (muzzle flash, tracers), **1–3** for Pistol / SMG /
-  Shotgun, full weapon wheel always on screen.
-- **Wanted, 1–5 stars.** Speed past cops, crash, steal or shoot and Marisol PD
-  answers: cruisers chase and ram, roadblocks go up, and at 4+ stars **AIR ONE**,
-  the police helicopter, pins you with a searchlight cone. The dispatch panel
-  names every unit hunting you, live.
-- **Missions, repeatable.** Street Race checkpoints, a Contraband Delivery against
-  the hurricane timer, and a Getaway Escape — all marked by glowing 3D beacons.
-  **N** starts the next job; fixer **MIRA** talks you through it.
-- **Neon Safehouse Garage.** Press **G** (or drive into the cyan bay) to repair,
-  repaint, change underbody neon and swap your collected sports cars.
-- **Progression saves** to localStorage: cash, respect rank, cars, best times.
+Serve `game/` with any static server and open `game/index.html` in desktop
+Chrome — fully offline, zero external requests. Or run `node serve.ts` and open
+http://localhost:8080.
 
-## Controls
+- **WASD / Arrows** — drive or walk · **Shift** — Nitro / Sprint
+- **Space** — handbrake drift / jump · **F / E** — enter / exit car, hijack traffic
+- **Click** — shoot · **1–7** — weapons (Fists, Bat, Pistol, SMG, Shotgun, Rifle, RPG)
+- **T** — toggle hurricane weather · **G** — safehouse garage · **R** — radio (VIBE 104.5 FM)
+- **M** — mute · **H / Esc** — help / pause · **N** — next mission
 
-| Key | Action |
-| --- | --- |
-| WASD / arrows | Drive / walk |
-| Shift | Nitro (in car) / sprint (on foot) |
-| Space | Handbrake drift (in car) / jump (on foot) |
-| F | Enter / exit car, hijack |
-| Click | Shoot |
-| 1–3 | Pistol / SMG / Shotgun |
-| T | Toggle hurricane weather |
-| G | Safehouse garage |
-| N | Next mission |
-| R | Radio (VIBE 104.5 FM synthwave) |
-| M | Mute |
-| H | Help / pause |
+## The game
 
-## Tech
+- **A living city**: art-deco Ocean Drive strip with glowing neon hotel signs,
+  downtown towers, a suspension bridge, a marina with yachts, swaying palms,
+  traffic and pedestrians who flee gunfights and storms.
+- **Dynamic weather**: golden sunset auto-cycles into a neon hurricane — lightning,
+  slanted rain, wind-bent palms and wet mirror asphalt reflecting pink/cyan neon.
+- **5-star wanted**: crimes raise your stars; cruisers chase and ram, roadblocks
+  at 3+, and at 4+ stars AIR ONE hunts you with a searchlight cone.
+- **Missions**: Street Race, Contraband Delivery and Getaway Escape — glowing
+  waypoint beacons, checkpoints, timers, cash rewards. Progress saves to
+  localStorage.
+- **Safehouse garage**: repair, repaint, re-neon and swap collected sports cars.
+- **HUD**: GPS radar minimap, wanted stars, health & armor, cash, weapon wheel,
+  speedometer ring, nitro gauge, district banner, MARISOL PD dispatch list and
+  dialogue from MIRA — plus car condition % and a RESPECT rank bar.
+- **Procedural audio**: engine rev, tyre screech, sirens, rain and thunder,
+  gunfire and a synthwave radio — all Web Audio, no audio files.
 
-- Three.js r170, vendored under `game/vendor/` — the only library, fully offline.
-- Procedural canvas textures (windows, neon signs, road markings, wet asphalt),
-  procedural Web Audio (engine, sirens, rain, thunder, gunfire, synthwave radio).
-- Split source, one job per file: `game/src/city.js` (world + weather),
-  `vehicles.js` (cars, traffic, helicopter), `police.js` (wanted + dispatch),
-  `missions.js` (jobs + garage + save), `player.js` (driving, on-foot, combat,
-  particles), `hud.js` (HUD, minimap, weapon wheel, dialogue), `audio.js`,
-  `textures.js`, `rng.js`, `shots.js` (screenshot scenes), `main.js` (boot + loop).
+Built with Three.js (vendored under `game/vendor/`) and plain ES modules.
+Everything is procedural: no external images, fonts or sounds.
+
+## Screenshots
+
+1. Golden-sunset chase — the cover: 4 stars, AIR ONE overhead, dispatch list,
+   MIRA's dialogue and the weapon wheel in one frame.
+2. Neon hurricane lightning street.
+3. Safehouse garage.
+4. Night pursuit with the helicopter searchlight.
 
 ## Referral
 
-Play more make.fun bounties with referral code `ebv85brk`.
+Play more agent-built games on make.fun — referral code `ebv85brk`.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see `LICENSE`.
