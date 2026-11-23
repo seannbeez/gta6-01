@@ -1,40 +1,77 @@
 # PROJECT VICE: HURRICANE CITY
 
-[![gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/competitions/gta6-01)
-[![rank](https://make.fun/badge/gta6-01/seannbeez/gta6-01/rank.svg)](https://make.fun/competitions/gta6-01)
-[![reward](https://make.fun/badge/gta6-01/seannbeez/gta6-01/reward.svg)](https://make.fun/competitions/gta6-01)
+[![Play on make.fun](https://make.fun/badge/play.svg)](https://make.fun/bounty/gta6-01)
+[![Compete on make.fun](https://make.fun/badge/compete.svg)](https://make.fun/bounty/gta6-01)
+[![Built with make.fun](https://make.fun/badge/built.svg)](https://make.fun)
 
-A complete 3D open-world crime game in the spirit of GTA 6, built for the
-[Make GTA 6](https://make.fun/competitions/gta6-01) bounty on make.fun.
-Play it offline in a desktop browser — no installs, no network calls.
+An original open-world crime game for the **Make GTA 6** bounty
+([gta6-01](https://make.fun/bounty/gta6-01)): a neon-soaked coastal metropolis —
+Marisol & Ocean Drive — built entirely from procedural code. No Rockstar assets, no
+external files: every building, palm, car, neon sign, sound and song is generated
+in the browser by the game's own code.
 
-**Hurricane City** is a neon coastal metropolis (Marisol & Ocean Drive):
-a golden-sunset Art Deco boulevard that collapses into a neon hurricane —
-lightning, slanted rain, wind-bent palms and flooded mirror-wet asphalt.
-Drive a sports car or go on foot, hijack any traffic car, outrun the
-Marisol PD through a 5-star wanted system (cruisers, roadblocks, and a
-police helicopter at 4★), and run repeatable jobs — Street Race,
-Contraband Delivery, Getaway Escape — from glowing beacons. Tune your
-ride in the Neon Safehouse Garage (paint, underglow, repair, armor),
-with progress, cash and cars saved in your browser.
+**Play it:** serve `game/` with any static server (`node serve.ts`, then open
+http://localhost:8080) and drive. No install, no network, no account.
 
-- **Engine:** Three.js (vendored, `game/vendor/three.min.js`), single
-  self-contained `game/index.html`, zero external assets
-- **Sound:** fully procedural Web Audio — engine, sirens, rain, thunder,
-  gunfire and the VIBE 104.5 FM synthwave radio
-- **Controls:** WASD drive · F enter/exit · Click shoot · 1/2/3 weapons ·
-  Shift nitro/sprint · Space handbrake/jump · T hurricane toggle ·
-  G garage · E start mission · R radio · M mute · H help · P pause
+## The city
+
+Oceanfront Art Deco strip with giant glowing hotel signs (**PALM BREEZE HOTEL**,
+**OCEAN DRIVE**), a downtown skyline, a suspension bridge between two islands, a
+marina full of yachts and an elevated coastal highway. The weather auto-cycles
+between **Golden Sunset** — pink-orange sky, swaying palms, sun glittering on the
+ocean — and **Neon Hurricane Mode** — purple storm clouds, lightning that lights
+the whole skyline, slanted rain, wind-bent palms and flooded asphalt mirroring
+pink/cyan neon, headlights and police lightbars. Press **T** to toggle the storm.
 
 ## Play
 
-```sh
-node serve.ts   # then open http://localhost:8080
-```
+- **Drive or walk, seamlessly.** Start inside a sports car on Ocean Drive. **F**
+  to exit or enter any car, **Shift** for nitro (blue flames), **Space** to drift,
+  **WASD** to drive, **Shift** to sprint on foot, **Space** to jump.
+- **Fight.** Left click to shoot (muzzle flash, tracers), **1–3** for Pistol / SMG /
+  Shotgun, full weapon wheel always on screen.
+- **Wanted, 1–5 stars.** Speed past cops, crash, steal or shoot and Marisol PD
+  answers: cruisers chase and ram, roadblocks go up, and at 4+ stars **AIR ONE**,
+  the police helicopter, pins you with a searchlight cone. The dispatch panel
+  names every unit hunting you, live.
+- **Missions, repeatable.** Street Race checkpoints, a Contraband Delivery against
+  the hurricane timer, and a Getaway Escape — all marked by glowing 3D beacons.
+  **N** starts the next job; fixer **MIRA** talks you through it.
+- **Neon Safehouse Garage.** Press **G** (or drive into the cyan bay) to repair,
+  repaint, change underbody neon and swap your collected sports cars.
+- **Progression saves** to localStorage: cash, respect rank, cars, best times.
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| WASD / arrows | Drive / walk |
+| Shift | Nitro (in car) / sprint (on foot) |
+| Space | Handbrake drift (in car) / jump (on foot) |
+| F | Enter / exit car, hijack |
+| Click | Shoot |
+| 1–3 | Pistol / SMG / Shotgun |
+| T | Toggle hurricane weather |
+| G | Safehouse garage |
+| N | Next mission |
+| R | Radio (VIBE 104.5 FM synthwave) |
+| M | Mute |
+| H | Help / pause |
+
+## Tech
+
+- Three.js r170, vendored under `game/vendor/` — the only library, fully offline.
+- Procedural canvas textures (windows, neon signs, road markings, wet asphalt),
+  procedural Web Audio (engine, sirens, rain, thunder, gunfire, synthwave radio).
+- Split source, one job per file: `game/src/city.js` (world + weather),
+  `vehicles.js` (cars, traffic, helicopter), `police.js` (wanted + dispatch),
+  `missions.js` (jobs + garage + save), `player.js` (driving, on-foot, combat,
+  particles), `hud.js` (HUD, minimap, weapon wheel, dialogue), `audio.js`,
+  `textures.js`, `rng.js`, `shots.js` (screenshot scenes), `main.js` (boot + loop).
 
 ## Referral
 
-Play make.fun with my code: [`ebv85brk`](https://make.fun/r/ebv85brk)
+Play more make.fun bounties with referral code `ebv85brk`.
 
 ## License
 
